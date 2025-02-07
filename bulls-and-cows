@@ -1,13 +1,15 @@
 #!/bin/bash
 
-function generate_number() {
-    while true; do
-        number=$(shuf -i 1000-9999 -n 1)
-        if [[ $(echo "$number" | grep -o . | sort | uniq | wc -l) -eq 4 ]]; then
-            echo "$number"
-            return
-        fi
-    done
+generate_number() {
+	digits=()
+	while [ ${#digits[@]} -lt 4 ]; do
+		rand_digit=$((RANDOM % 10))
+		if [[ ! " ${digits[@]} " =~ " ${rand_digit} " ]]; then
+			digits+=($rand_digit)
+		fi
+	done
+	random_number=$(echo "${digits[@]}" | tr -d ' ')
+	echo $random_number
 }
 
 function calculate_bulls_and_cows() {
