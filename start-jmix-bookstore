@@ -1,0 +1,69 @@
+#!/bin/bash
+
+PROJECT_NAME=jmix-bookstore
+NETWORK_NAME=jmix-bookstore-network
+SUBNET_NAME=jmix-bookstore-subnet
+KEY_NAME=jmix
+IMAGE_ID=fd8br3t8b42gt7cheq7a
+CORES=2
+MEMORY_SIZE=4
+DISK_SIZE=20GB
+ZONE=ru-central1-a
+VM_NAME=jmix-bookstore-vm
+USER_NAME=yc-user
+
+function create_network() {
+	yc vpc network create \
+	  --name $NETWORK_NAME \
+	  --labels project=$PROJECT_NAME
+}
+
+function create_subnetwork() {
+	yc vpc subnet create \
+	  --name $SUBNET_NAME \
+	  --zone $ZONE \
+	  --range 10.0.0.0/24 \
+	  --network-name $NETWORK_NAME \
+	  --labels project=$PROJECT_NAME
+}
+
+function generate_ssh_key() {
+	ssh-keygen -t rsa -b 2048 -f ~/.ssh/$KEY_NAME -N ""
+}
+
+function create_vm() {
+	yc compute instance create \
+	  --name ${VM_NAME} \
+	  --zone ${ZONE} \
+	  --cores ${CORES} \
+	  --memory ${MEMORY_SIZE} \
+	  --create-boot-disk image-id=${IMAGE_ID},size=${DISK_SIZE} \
+	  --network-interface subnet-name=${SUBNET_NAME},nat-ip-version=ipv4 \
+	  --ssh-key ~/.ssh/${KEY_NAME}.pub \
+	  --labels project=${PROJECT_NAME}
+}
+
+function run_application() {
+	VM_IP=$(yc compute instance get --name ${VM_NAME} --format json | jq -r '.network_interfaces[0].primary_v4_address.one_to_one_nat.address')
+	ssh -i ~/.ssh/$KEY_NAME $USER_NAME@$VM_IP << EOF
+  sudo apt-get update
+  sudo apt-get install -y docker.io
+  sudo systemctl start docker
+  sudo systemctl enable docker
+EOF
+
+	ssh -i ~/.ssh/$KEY_NAME $USER_NAME@$VM_IP "docker run -d --name jmix-app -p 80:8080 jmix/jmix-bookstore"
+
+	echo "Для подключения к виртуальному серверу по SSH используйте команду: ssh -i ~/.ssh/$KEY_NAME $USER_NAME@$VM_IP"
+	echo "Для открытия веб-приложения используйте URL: http://$VM_IP:80"
+}
+
+function main() {
+	create_network
+	create_subnetwork
+	generate_ssh_key
+	create_vm
+	run_application
+}
+
+main
