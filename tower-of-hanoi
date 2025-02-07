@@ -1,0 +1,113 @@
+#!/bin/bash
+
+function handle_sigint() {
+	trap 'echo -e "\nДля завершения игры введите символ 'q' или 'Q'"' SIGINT
+}
+
+function print_stacks() {
+    local -n stack_A=$1
+    local -n stack_B=$2
+    local -n stack_C=$3
+    for i in {7..0}; do
+        if [ ${#stack_A[@]} -gt $i ]; then
+            printf "|%s" "${stack_A[$i]}"
+        else
+            printf "| "
+        fi
+        if [ ${#stack_B[@]} -gt $i ]; then
+            printf "| |%s" "${stack_B[$i]}"
+        else
+            printf "| | "
+        fi
+        if [ ${#stack_C[@]} -gt $i ]; then
+            printf "| |%s|\n" "${stack_C[$i]}"
+        else
+            printf "| | |\n"
+        fi
+    done
+    echo "+-+ +-+ +-+"
+    echo " A   B   C "
+}
+
+function is_valid_move() {
+    local -n from_stack=$1
+    local -n to_stack=$2
+    if [[ ${#from_stack[@]} -eq 0 ]]; then
+        echo "Такое перемещение запрещено!"
+        return 1
+    fi
+    if [[ ${#to_stack[@]} -ne 0 && ${from_stack[-1]} -gt ${to_stack[-1]} ]]; then
+        echo "Такое перемещение запрещено!"
+        return 1
+    fi
+    return 0
+}
+
+function move_disk() {
+    local -n from_stack=$1
+    local -n to_stack=$2
+    to_stack+=("${from_stack[-1]}")
+    unset from_stack[-1]
+    from_stack=("${from_stack[@]}")
+}
+
+function check_win() {
+    local -n stack=$1
+    for i in {0..7}; do
+        if [[ ${stack[i]:-0} -ne $((8 - i)) ]]; then
+            return 1
+        fi
+    done
+    return 0
+}
+
+function main_loop() {
+	declare -a A=(8 7 6 5 4 3 2 1)
+	declare -a B=()
+	declare -a C=()
+	move_count=0
+	while true; do
+		print_stacks A B C
+		echo -n "Ход № $move_count (откуда, куда): "
+		read -r from to
+		if [[ ${#from} -eq 2 ]]; then
+			to=${from:1:1}
+			from=${from:0:1}
+		fi
+		case $from in
+			[Qq]) exit 1 ;;
+		esac
+		case $to in
+			[Qq]) exit 1 ;;
+		esac
+		if ! [[ $from =~ ^[ABCabc]$ && $to =~ ^[ABCabc]$ ]]; then
+			echo "Ошибка ввода. Пожалуйста, введите корректные имена стеков или 'q' для выхода."
+			continue
+		fi
+		from=${from^^}
+		to=${to^^}
+		if [[ $from == $to ]]; then
+			echo "Ошибка ввода. Стек-отправитель и стек-получатель должны быть разными."
+			continue
+		fi
+		is_valid_move $from $to
+		if [[ $? -ne 0 ]]; then
+			continue
+		fi
+		move_disk $from $to
+		((move_count++))
+		check_win B || check_win C
+		if [[ $? -eq 0 ]]; then
+			print_stacks A B C
+			echo "Поздравляем! Вы выиграли!"
+			exit 0
+		fi
+	done
+}
+
+function main() {
+	handle_sigint
+	main_loop
+}
+
+main
