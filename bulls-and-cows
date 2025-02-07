@@ -1,0 +1,84 @@
+#!/bin/bash
+
+function generate_number() {
+    while true; do
+        number=$(shuf -i 1000-9999 -n 1)
+        if [[ $(echo "$number" | grep -o . | sort | uniq | wc -l) -eq 4 ]]; then
+            echo "$number"
+            return
+        fi
+    done
+}
+
+function calculate_bulls_and_cows() {
+    guess=$1
+    bulls=0
+    cows=0
+    for i in {0..3}; do
+        if [[ ${guess:i:1} == ${secret_number:i:1} ]]; then
+            ((bulls++))
+        elif [[ $secret_number == *${guess:i:1}* ]]; then
+            ((cows++))
+        fi
+    done
+    echo "$bulls" "$cows"
+}
+
+function handle_sigint() {
+	trap 'echo -e "\nДля завершения игры введите символ 'q' или 'Q'"' SIGINT
+}
+
+function print_intro() {
+	echo -e "********************************************************************************
+* Я загадал 4-значное число с неповторяющимися цифрами. На каждом ходу делайте *
+* попытку отгадать загаданное число. Попытка - это 4-значное число с           *
+* неповторяющимися цифрами.                                                    *
+********************************************************************************\n"
+}
+
+function main_loop() {
+	secret_number=$(generate_number)
+	attempts=0
+	declare -a history
+
+	while true; do
+	    echo -n "Попытка $attempts: "
+		read guess
+
+		if [[ $guess == "q" || $guess == "Q" ]]; then
+			echo "Вы завершили игру."
+			exit 1
+		fi
+
+		if [[ ! $guess =~ ^[0-9]{4}$ || $(echo "$guess" | grep -o . | sort | uniq | wc -l) -ne 4 ]]; then
+			echo "Ошибка: Введите 4-х значное число с неповторяющимися цифрами."
+			continue
+		fi
+
+		((attempts++))
+		result=$(calculate_bulls_and_cows $guess)
+		bulls=$(echo $result | awk '{print $1}')
+		cows=$(echo $result | awk '{print $2}')
+		history+=("$guess $cows $bulls")
+		echo -e "Коров: $cows, Быков - $bulls\n"
+		echo -e "История ходов:"
+		for ((i=0; i<${#history[@]}; i++)); do
+			entry=(${history[$i]})
+			echo -e "$((i+1)). ${entry[0]} (Коров - ${entry[1]} Быков - ${entry[2]})"
+		done
+		echo ""
+
+		if [[ $bulls -eq 4 ]]; then
+			echo "Поздравляем! Вы угадали число $secret_number за $attempts ходов."
+			exit 0
+		fi
+	done
+}
+
+function main() {
+	handle_sigint
+	print_intro
+	main_loop
+}
+
+main
